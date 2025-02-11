@@ -12,7 +12,7 @@ Be a part of the DashIO community by joining our [Discord Server](https://discor
 
 ## Documentation
 
-For the **DashIO** ESP32 library documentation: <a href="https://dashio.io/guide-arduino-esp32">https://dashio.io/guide-arduino-esp32</a>
+For the **DashIO** ESP32 library documentation: <a href="https://github.com/dashio-connect/arduino-dashioCommsESP">https://github.com/dashio-connect/arduino-dashioCommsESP</a>
 
 For the big picture on **DashIO**, take a look at our website: <a href="https://dashio.io">dashio.io</a>
 
