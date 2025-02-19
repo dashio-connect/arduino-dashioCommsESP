@@ -8,52 +8,20 @@
 enum CommsBoardType {
     BOARD_ARDUINO,
     BOARD_ARDUINO_COMMS,
-    BOARD_DASH_DEVICE_COMMS,
+    BOARD_DASH_DEVICE,
     BOARD_DASH_DEVICE_MINI
 };
 
-/*???
-#ifdef CONFIG_IDF_TARGET_ESP32S3
-struct CommsModuleConfig {
-    CommsBoardType commsBoardType = BOARD_ARDUINO
-    
-    // Wakeup from sleep EXT1 pin
-    gpio_num_t extWakeupPin = GPIO_NUM_1;
-
-    gpio_num_t buttonPin = GPIO_NUM_3;
-
-    // Leds
-    bool ledOnIsLow = true;
-    gpio_num_t ledPinWiFi = GPIO_NUM_4;
-    gpio_num_t ledPinMQTT = GPIO_NUM_5;
-    gpio_num_t ledPinTCP = GPIO_NUM_6;
-    gpio_num_t ledPinBLE = GPIO_NUM_7;
-    bool enableLEDtest = true;
-
-    // Serial
-    int baudRate = 115200;
-    gpio_num_t serialTx = GPIO_NUM_43;
-    gpio_num_t serialRx = GPIO_NUM_44;
-    HardwareSerial *uart = &Serial2;
-
-    // Buffers
-    uint16_t messageBufferSize = 10000;
-
-    // Dash Sensor IO Board
-    gpio_num_t sensorIOenable = GPIO_NUM_NC;
-};
-#else
-*/
-struct CommsModuleConfig {
+struct DashCommsConfig {
     CommsBoardType commsBoardType = BOARD_ARDUINO;
 
     // Wakeup from sleep EXT1 pin
     gpio_num_t extWakeupPin = GPIO_NUM_NC;
 
-    gpio_num_t buttonPin = GPIO_NUM_NC;
+    gpio_num_t bleButtonPin = GPIO_NUM_NC;
 
     // Leds
-    bool ledOnIsLow = true;
+    bool ledActiveLow = true;
     gpio_num_t ledPinWiFi = GPIO_NUM_NC;
     gpio_num_t ledPinMQTT = GPIO_NUM_NC;
     gpio_num_t ledPinTCP = GPIO_NUM_NC;
@@ -62,9 +30,9 @@ struct CommsModuleConfig {
 
     // Serial
     int baudRate = 115200;
-    gpio_num_t serialTx = GPIO_NUM_NC;
-    gpio_num_t serialRx = GPIO_NUM_NC;
-    HardwareSerial *uart = NULL;
+    gpio_num_t serialTx = GPIO_NUM_17;
+    gpio_num_t serialRx = GPIO_NUM_16;
+    HardwareSerial *uart = &Serial2;
 
     // Buffers
     uint16_t messageBufferSize = 10000;
@@ -72,7 +40,6 @@ struct CommsModuleConfig {
     // Dash Sensor IO Board
     gpio_num_t sensorIOenable = GPIO_NUM_NC;
 };
-//???#endif
 
 
 // Defines
@@ -142,7 +109,7 @@ enum CommsModuleMode {
 
 class DashCommsESP {
 public:    
-    static CommsModuleConfig config;
+    static DashCommsConfig config;
 
     static DashDevice *dashDevice;
     static DashProvision *provisioning;
@@ -170,7 +137,7 @@ public:
 
     static bool timerStopBLE(void *opaque);
 
-    void init(uint8_t numBLE, uint8_t numTCP, bool dashMQTT, void (*_processIncomingMessage)(MessageData *messageData) = nullptr);
+    DashDevice * init(uint8_t numBLE, uint8_t numTCP, bool dashMQTT, void (*_processIncomingMessage)(MessageData *messageData) = nullptr);
     static void setBLEtimeout(uint16_t timeout);
     static void setLEDsTurnoff(uint16_t timeout);
     void setBoardType(CommsBoardType boardType);
@@ -229,6 +196,6 @@ private:
     static void stopMQTT();
     static void sleep();
 
-    static void updateLED(uint8_t pin, uint8_t state);
+    static void updateLED(gpio_num_t pin, uint8_t state);
     static void userInterfaceTask(void *parameters);
 };

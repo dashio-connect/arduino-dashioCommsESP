@@ -4,7 +4,7 @@
 
 Preferences credentials;
 
-CommsModuleConfig DashCommsESP::config;
+DashCommsConfig DashCommsESP::config;
 
 DashDevice *DashCommsESP::dashDevice = nullptr;
 DashProvision *DashCommsESP::provisioning = nullptr;
@@ -64,30 +64,40 @@ DashCommsESP::DashCommsESP(const char *type, const char *name, const char *confi
 
 void DashCommsESP::setHardwareConfig() {
     if (config.commsBoardType != BOARD_ARDUINO) {
+        if (config.extWakeupPin != GPIO_NUM_NC) {
 #if defined(ARDUINO_ESP32S3_DEV)
-        esp_sleep_enable_ext1_wakeup(1ULL << config.extWakeupPin, ESP_EXT1_WAKEUP_ANY_LOW);
+            esp_sleep_enable_ext1_wakeup(1ULL << config.extWakeupPin, ESP_EXT1_WAKEUP_ANY_LOW);
 #else
-        esp_sleep_enable_ext1_wakeup(1ULL << config.extWakeupPin, ESP_EXT1_WAKEUP_ALL_LOW);
+            esp_sleep_enable_ext1_wakeup(1ULL << config.extWakeupPin, ESP_EXT1_WAKEUP_ALL_LOW);
 #endif
-        rtc_gpio_pullup_en(config.extWakeupPin);
-        rtc_gpio_pulldown_dis(config.extWakeupPin);
+            rtc_gpio_pullup_en(config.extWakeupPin);
+            rtc_gpio_pulldown_dis(config.extWakeupPin);
+        }
         
         // LEDs (and turn off)
-        pinMode(config.ledPinWiFi, OUTPUT);
-        digitalWrite(config.ledPinWiFi, config.ledOnIsLow);
+        if (config.ledPinWiFi != GPIO_NUM_NC) {
+            pinMode(config.ledPinWiFi, OUTPUT);
+            digitalWrite(config.ledPinWiFi, config.ledActiveLow);
+        }
         
-        pinMode(config.ledPinBLE, OUTPUT);
-        digitalWrite(config.ledPinBLE, config.ledOnIsLow);
+        if (config.ledPinBLE != GPIO_NUM_NC) {
+            pinMode(config.ledPinBLE, OUTPUT);
+            digitalWrite(config.ledPinBLE, config.ledActiveLow);
+        }
         
-        pinMode(config.ledPinTCP, OUTPUT);
-        digitalWrite(config.ledPinTCP, config.ledOnIsLow);
+        if (config.ledPinTCP != GPIO_NUM_NC) {
+            pinMode(config.ledPinTCP, OUTPUT);
+            digitalWrite(config.ledPinTCP, config.ledActiveLow);
+        }
         
-        pinMode(config.ledPinMQTT, OUTPUT);
-        digitalWrite(config.ledPinMQTT, config.ledOnIsLow);
+        if (config.ledPinMQTT != GPIO_NUM_NC) {
+            pinMode(config.ledPinMQTT, OUTPUT);
+            digitalWrite(config.ledPinMQTT, config.ledActiveLow);
+        }
         
         // Push Button
-        if (config.buttonPin != GPIO_NUM_NC) {
-            pinMode(config.buttonPin, INPUT); //??? Currently has an external pullup, so don't need INPUT_PULLUP
+        if (config.bleButtonPin != GPIO_NUM_NC) {
+            pinMode(config.bleButtonPin, INPUT); //??? Currently has an external pullup, so don't need INPUT_PULLUP
         }
     }
 }
@@ -98,7 +108,7 @@ void DashCommsESP::setBoardType(CommsBoardType boardType) {
     if (boardType == BOARD_DASH_DEVICE_MINI) {
         config.extWakeupPin = GPIO_NUM_NC;
         
-        config.buttonPin = GPIO_NUM_1;
+        config.bleButtonPin = GPIO_NUM_1;
         
         // LEDs
         config.ledPinWiFi = GPIO_NUM_NC;
@@ -108,12 +118,12 @@ void DashCommsESP::setBoardType(CommsBoardType boardType) {
         
         // Dash Sensor IO Board
         config.sensorIOenable = GPIO_NUM_21;
-    } else if (boardType == BOARD_DASH_DEVICE_COMMS) {
+    } else if (boardType == BOARD_DASH_DEVICE) {
 #ifdef CONFIG_IDF_TARGET_ESP32S3
         // Wakeup from sleep EXT1 pin
         config.extWakeupPin = GPIO_NUM_1;
 
-        config.buttonPin = GPIO_NUM_3;
+        config.bleButtonPin = GPIO_NUM_3;
 
         // Leds
         config.ledPinWiFi = GPIO_NUM_4;
@@ -125,41 +135,37 @@ void DashCommsESP::setBoardType(CommsBoardType boardType) {
         config.serialTx = GPIO_NUM_43;
         config.serialRx = GPIO_NUM_44;
 #endif
-    } else if (boardType == BOARD_ARDUINO_COMMS) {
-        // Serial
-        gpio_num_t serialTx = GPIO_NUM_17;
-        gpio_num_t serialRx = GPIO_NUM_16;
     }
 }
 
-void DashCommsESP::init(uint8_t numBLE, uint8_t numTCP, bool dashMQTT, void (*_processIncomingMessage)(MessageData *messageData)) {
+DashDevice * DashCommsESP::init(uint8_t numBLE, uint8_t numTCP, bool dashMQTT, void (*_processIncomingMessage)(MessageData *messageData)) {
     processIncomingMessage = _processIncomingMessage;
-
+    
     if (!initDone) {
         dashDevice->setup(Network.macAddress());
-
+        
         initDone = true;
         dashDevice->statusCallback = &statusCallback;
         setHardwareConfig();
-
+        
         if (moduleMode != MODULE_MODE_DASH_DEVICE) {
             serialReceiveBuffer = new char[MAX_BUFFER_SIZE];
             serialTransmitBuffer = new char[MAX_BUFFER_SIZE];
             messageBuffer = new char[MAX_BUFFER_SIZE];
             configC64 = new char[MAX_BUFFER_SIZE];
         }
-
+        
         // Setup task scheduler for LEDs etc.
         xTaskCreate(userInterfaceTask, "uiTask", 4096, NULL, 1, NULL); //??? parameters = this?
-
+        
         provisioning = new DashProvision(dashDevice);
         provisioning->load(onProvisionCallback);
-
+        
         if ((numTCP > 0) or dashMQTT) {
             wifi = new DashWiFi(dashDevice);
-
+            
             if (numTCP > 0) {
-                tcp_con = new DashTCP(dashDevice, true, provisioning->tcpPort, numTCP); 
+                tcp_con = new DashTCP(dashDevice, true, provisioning->tcpPort, numTCP);
                 tcp_con->setCallback(&interceptIncomingMessage);
             }
             if (dashMQTT) {
@@ -168,12 +174,14 @@ void DashCommsESP::init(uint8_t numBLE, uint8_t numTCP, bool dashMQTT, void (*_p
                 mqtt_con->setCallback(&interceptIncomingMessage);
             }
         }
-
+        
         if (numBLE > 0) {
             ble_con = new DashBLE(dashDevice, true, numBLE);
             ble_con->setCallback(&interceptIncomingMessage);
         }
     }
+
+    return dashDevice;
 }
 
 void DashCommsESP::interceptIncomingMessage(MessageData *messageData) {
@@ -276,6 +284,7 @@ void DashCommsESP::enableRebootAlarm(bool enable) {
 
 void DashCommsESP::sendAlarm(const String& message) {
     if (mqtt_con != nullptr) {
+        mqtt_con->sendAlarmMessage(message);
     }
 }
 
@@ -350,8 +359,8 @@ void DashCommsESP::forwardMessageToSerial(MessageData *messageData) {
 void DashCommsESP::userInterfaceTask(void *parameters) {
     while(1) {
         // Manage BLE button
-        if ((config.buttonPin != GPIO_NUM_NC) && bleSwEnabled) {
-            if (!digitalRead(config.buttonPin)) { // i.e. button pressed
+        if ((config.bleButtonPin != GPIO_NUM_NC) && bleSwEnabled) {
+            if (!digitalRead(config.bleButtonPin)) { // i.e. button pressed
                 if (buttonPressCount == 1) {
                     if ((!ledsEnabled) && (ledsOffTimeoutS > 0)) {
                         setLEDsTurnoff(ledsOffTimeoutS);
@@ -414,38 +423,38 @@ void DashCommsESP::userInterfaceTask(void *parameters) {
             switch (uiStartupSequenceCounter) {
                 case 0:
                     if (config.ledPinWiFi != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinWiFi, !config.ledOnIsLow);
+                        digitalWrite(config.ledPinWiFi, !config.ledActiveLow);
                     }
                     break;
                 case 2: 
                     if (config.ledPinMQTT != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinMQTT, !config.ledOnIsLow);
+                        digitalWrite(config.ledPinMQTT, !config.ledActiveLow);
                     }
                     break;
                 case 4:
                     if (config.ledPinWiFi != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinWiFi, config.ledOnIsLow);
+                        digitalWrite(config.ledPinWiFi, config.ledActiveLow);
                     }
                     if (config.ledPinTCP != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinTCP, !config.ledOnIsLow);
+                        digitalWrite(config.ledPinTCP, !config.ledActiveLow);
                     }
                     break;
                 case 6:
                     if (config.ledPinMQTT != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinMQTT, config.ledOnIsLow);
+                        digitalWrite(config.ledPinMQTT, config.ledActiveLow);
                     }
                     if (config.ledPinBLE != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinBLE, !config.ledOnIsLow);
+                        digitalWrite(config.ledPinBLE, !config.ledActiveLow);
                     }
                     break;
                 case 8:
                     if (config.ledPinTCP != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinTCP, config.ledOnIsLow);
+                        digitalWrite(config.ledPinTCP, config.ledActiveLow);
                     }
                     break;
                 case 10:
                     if (config.ledPinBLE != GPIO_NUM_NC) {
-                        digitalWrite(config.ledPinBLE, config.ledOnIsLow);
+                        digitalWrite(config.ledPinBLE, config.ledActiveLow);
                     }
                     break;
                 default:
@@ -516,10 +525,10 @@ void DashCommsESP::userInterfaceTask(void *parameters) {
                 updateLED(config.ledPinBLE, LED_STATE_OFF);
             }
         } else {
-            digitalWrite(config.ledPinWiFi, config.ledOnIsLow);
-            digitalWrite(config.ledPinMQTT, config.ledOnIsLow);
-            digitalWrite(config.ledPinTCP, config.ledOnIsLow);
-            digitalWrite(config.ledPinBLE, config.ledOnIsLow);
+            digitalWrite(config.ledPinWiFi, config.ledActiveLow);
+            digitalWrite(config.ledPinMQTT, config.ledActiveLow);
+            digitalWrite(config.ledPinTCP, config.ledActiveLow);
+            digitalWrite(config.ledPinBLE, config.ledActiveLow);
         }
 
         vTaskDelay(500 / MAX_LED_STATES / portTICK_PERIOD_MS);
@@ -685,24 +694,26 @@ void DashCommsESP::run() {
     }
 }
 
-void DashCommsESP::updateLED(uint8_t pin, uint8_t state) {
-    switch (ledTimerCount) {
-    case LED_STATE_OFF:
-        if (state == LED_STATE_OFF) {
-            digitalWrite(pin, config.ledOnIsLow);
-        } else {
-            digitalWrite(pin, !config.ledOnIsLow);
+void DashCommsESP::updateLED(gpio_num_t pin, uint8_t state) {
+    if (pin != GPIO_NUM_NC) {
+        switch (ledTimerCount) {
+            case LED_STATE_OFF:
+                if (state == LED_STATE_OFF) {
+                    digitalWrite(pin, config.ledActiveLow);
+                } else {
+                    digitalWrite(pin, !config.ledActiveLow);
+                }
+                break;
+            case LED_STATE_STARTUP:
+                if (state == LED_STATE_STARTUP) {
+                    digitalWrite(pin, config.ledActiveLow);
+                }
+                break;
+            case LED_STATE_SEARCHING:
+                if (state == LED_STATE_SEARCHING) {
+                    digitalWrite(pin, config.ledActiveLow);
+                }
+                break;
         }
-        break;
-    case LED_STATE_STARTUP:
-        if (state == LED_STATE_STARTUP) {
-            digitalWrite(pin, config.ledOnIsLow);
-        }
-        break;
-    case LED_STATE_SEARCHING:
-        if (state == LED_STATE_SEARCHING) {
-            digitalWrite(pin, config.ledOnIsLow);
-        }
-        break;
     }
 }

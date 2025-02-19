@@ -80,7 +80,7 @@ void DashCommsESP::parseMessage() { // Parse and act on the contents of the inte
                 } else { // If there is a token, and its not a halt, it should be a timeout value
                     setBLEtimeout(atoi(token));
                     bleSwEnabled = true;
-                    if (config.buttonPin == GPIO_NUM_NC) {
+                    if (config.bleButtonPin == GPIO_NUM_NC) {
                         startBLE();
                     }
                 }
@@ -141,7 +141,7 @@ void DashCommsESP::parseMessage() { // Parse and act on the contents of the inte
                     strcat(respMsg, BLE);
                 }
                 strcat(respMsg, "\0");
-                sendControlMessage(CNCTN, respMsg); 
+                sendControlMessage(CNCTN, respMsg);
                 Serial.printf("%s\r\n", respMsg);
             } else if ((!strncmp(token, CFG, CFGLEN))) {
                 token = strtok(NULL, DELIMETERS_STR);
