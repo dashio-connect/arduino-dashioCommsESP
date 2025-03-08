@@ -95,8 +95,8 @@ const char ALM[] = "ALM";
 const int ALMLEN = 3;
 const char CLK[] = "CLK";
 const int CLKLEN = 3;
-const char LED[] = "LED";
-const int LEDLEN = 3;
+const char DASHLEDS[] = "LED";
+const int DASHLEDSLEN = 3;
 
 const char DELIM_STR[] = "\t";
 const char END_DELIM_STR[] = "\n";

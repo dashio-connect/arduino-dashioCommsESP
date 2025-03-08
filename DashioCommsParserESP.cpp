@@ -63,7 +63,7 @@ void DashCommsESP::parseMessage() { // Parse and act on the contents of the inte
                         }
                     }
                 }
-            } else if (!strncmp(token, LED, LEDLEN)) {
+            } else if (!strncmp(token, DASHLEDS, DASHLEDSLEN)) {
                 token = strtok(NULL, DELIMETERS_STR);
                 if (token) { // If there is a token, it should be a timeout value
                     setLEDsTurnoff(atoi(token));
