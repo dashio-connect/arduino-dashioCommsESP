@@ -1,8 +1,7 @@
 #include <dashioCommsESP.h>
 
 void DashCommsESP::parseMessage() { // Parse and act on the contents of the internal messageBuffer
-    Serial.print("Incoming->");
-    Serial.print(messageBuffer);
+    ESP_LOGI(DTAG, "Incoming->%s", messageBuffer);
     
     char *token = strtok(messageBuffer, DELIM_STR);
     
@@ -107,7 +106,7 @@ void DashCommsESP::parseMessage() { // Parse and act on the contents of the inte
                     stopMQTT();
                 }
             } else if (!strncmp(token, REBOOT, REBOOTLEN)) {
-                Serial.println("Rebooting");
+                ESP_LOGI(DTAG, "Rebooting");
                 ESP.restart();
             } else if (!strncmp(token, SLEEP, SLEEPLEN)) {
                 sleep();
@@ -142,7 +141,7 @@ void DashCommsESP::parseMessage() { // Parse and act on the contents of the inte
                 }
                 strcat(respMsg, "\0");
                 sendControlMessage(CNCTN, respMsg);
-                Serial.printf("%s\r\n", respMsg);
+                ESP_LOGI(DTAG, "%s\r\n", respMsg);
             } else if ((!strncmp(token, CFG, CFGLEN))) {
                 token = strtok(NULL, DELIMETERS_STR);
                 if (token) {
@@ -150,7 +149,7 @@ void DashCommsESP::parseMessage() { // Parse and act on the contents of the inte
                     token[tokenLength] = '\0';
                     memcpy(configC64, token, tokenLength+1);
                     dashDevice->configC64Str = configC64;
-                    Serial.println("Config stored to RAM");
+                    ESP_LOGI(DTAG, "Config stored to RAM");
 
                     token = strtok(NULL, DELIMETERS_STR);
                     if (token) {

@@ -146,7 +146,7 @@ public:
     void run();
 
     void enableRebootAlarm(bool enable);
-    void sendAlarm(const String& message);
+    void sendAlarm(const String& controlID, const String& title, const String& description);
     void addDashStore(ControlType controlType, String controlID);
 
 private:

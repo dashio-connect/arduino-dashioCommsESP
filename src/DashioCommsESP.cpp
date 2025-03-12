@@ -13,7 +13,7 @@ DashMQTT *DashCommsESP::mqtt_con = nullptr;
 DashTCP *DashCommsESP::tcp_con = nullptr;
 DashBLE *DashCommsESP::ble_con = nullptr;
 
-void (*DashCommsESP::processIncomingMessage)(MessageData *messageData);
+void (*DashCommsESP::processIncomingMessage)(MessageData *messageData) = nullptr;
 
 bool DashCommsESP::initDone = false;
 
@@ -191,7 +191,9 @@ void DashCommsESP::interceptIncomingMessage(MessageData *messageData) {
         break;
     default:
         if (moduleMode == MODULE_MODE_DASH_DEVICE) {
-            processIncomingMessage(messageData);
+            if (processIncomingMessage != nullptr) {
+                processIncomingMessage(messageData);
+            }
         } else if (moduleMode == MODULE_MODE_DASH_SERIAL) {
             forwardMessageToSerial(messageData);
         }
@@ -282,9 +284,9 @@ void DashCommsESP::enableRebootAlarm(bool enable) {
     }
 }
 
-void DashCommsESP::sendAlarm(const String& message) {
+void DashCommsESP::sendAlarm(const String& controlID, const String& title, const String& description) {
     if (mqtt_con != nullptr) {
-        mqtt_con->sendAlarmMessage(message);
+        mqtt_con->sendAlarmMessage(dashDevice->getAlarmMessage(controlID, title, description));
     }
 }
 
@@ -337,8 +339,7 @@ void DashCommsESP::sendControlMessage(const char* controlID, const char* payload
         }
         strcat(str, END_DELIM_STR);
 
-        Serial.print("Outgoing->");
-        Serial.println(str);
+        ESP_LOGI(DTAG, "Outgoing->%s", str);
 
         config.uart->print(str);
     }
@@ -350,8 +351,7 @@ void DashCommsESP::forwardMessageToSerial(MessageData *messageData) {
     message += messageData->getConnectionTypeStr(); // Prefix message with connectionn type
     message += messageData->getMessageGeneric(controlStr);
 
-    Serial.print("Serial Forward->");
-    Serial.println(message);
+    ESP_LOGI(DTAG, "Serial Forward->%s", message.c_str());
 
     config.uart->print(message);
 }
@@ -563,7 +563,7 @@ void DashCommsESP::setBLEpassKey(uint32_t passKey) {
 void DashCommsESP::startBLE() {
     if (ble_con != nullptr) {
         if (!isBLE) { // Don't restart BLE if already running
-            Serial.printf("Starting BLE with %lu second timeout set\r\n", bleCountdown / 2);
+            ESP_LOGI(DTAG, "Starting BLE with %lu second timeout set\r\n", bleCountdown / 2);
             isBLE = true;
             ble_con->begin();
             sendControlMessage(BLE, EN);
@@ -584,9 +584,13 @@ void DashCommsESP::stopBLE() {
 
 void DashCommsESP::startWiFi(bool allowRestart) {
     if ((wifi != nullptr) && (!isWiFiRunning || allowRestart)) {
-        Serial.printf("Starting WiFI: %s %s\n", provisioning->wifiSSID, provisioning->wifiPassword);
-        isWiFiRunning = true;
-        wifi->begin(provisioning->wifiSSID, provisioning->wifiPassword);
+        if (strlen(provisioning->wifiSSID) > 0) {
+            ESP_LOGI(DTAG, "Starting WiFI: %s %s\n", provisioning->wifiSSID, provisioning->wifiPassword);
+            isWiFiRunning = true;
+            wifi->begin(provisioning->wifiSSID, provisioning->wifiPassword);
+        } else {
+            ESP_LOGI(DTAG, "WiFi SSID missing");
+        }
     }
 }
 
@@ -648,7 +652,7 @@ void DashCommsESP::stopMQTT() {
 }
 
 void DashCommsESP::sleep() {
-    Serial.println("Going to sleep");
+    ESP_LOGI(DTAG, "Going to sleep");
 
     if (mqtt_con != nullptr) {
         mqtt_con->sendMessage(dashDevice->getOfflineMessage());
