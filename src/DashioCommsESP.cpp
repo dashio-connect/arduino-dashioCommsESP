@@ -156,7 +156,7 @@ DashDevice * DashCommsESP::init(uint8_t numBLE, uint8_t numTCP, bool dashMQTT, v
         }
         
         // Setup task scheduler for LEDs etc.
-        xTaskCreate(userInterfaceTask, "uiTask", 4096, NULL, 1, NULL); //??? parameters = this?
+        xTaskCreatePinnedToCore(userInterfaceTask, "uiTask", 4096, this, 1, NULL, 1); //??? parameters = this?
         
         provisioning = new DashProvision(dashDevice);
         provisioning->load(onProvisionCallback);
